@@ -1,20 +1,21 @@
-# print_numbers_extended.py
+def mergeProducts(A, B):
+    product_map = {}
 
-# Hàm để in các số từ 1 đến 10
-def print_numbers():
-    # Vòng lặp từ 1 đến 10
-    for i in range(1, 11):
-        # Kiểm tra xem số có phải là số chẵn hay lẻ
-        if i % 2 == 0:
-            print(f"Số {i} là số chẵn")
+    for product in A:
+        product_map[product] = True
+
+    for product in B:
+        if product in product_map:
+            product_map[product] = False
         else:
-            print(f"Số {i} là số lẻ")
+            product_map[product] = True
 
-# Thông báo bắt đầu chương trình
-print("Chương trình bắt đầu")
+    return product_map
 
-# Gọi hàm in số
-print_numbers()
+A = ["Banana", "Banana", "Apple"]
+B = ["Orange", "Apple", "Banana", "Watermelon"]
 
-# Thông báo kết thúc chương trình
-print("Chương trình kết thúc")
+merged_products = mergeProducts(A, B)
+print("Ket qua sau khi nhap san pham tu kho B vao kho A:")
+for product, imported in merged_products.items():
+    print(f"{product} -> {imported}")
