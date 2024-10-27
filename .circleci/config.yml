@@ -10,7 +10,8 @@ jobs:
   build:
     executor: maven-executor
     environment:
-      MYSQL_ROOT_LOGIN = credentials('mysql-root-login')
+      MYSQL_ROOT_LOGIN: << parameters.mysql_root_login >>
+    steps:
       - checkout
 
       - run:
@@ -55,9 +56,9 @@ jobs:
             docker container stop khalid-mysql || echo "this container does not exist"
             echo y | docker container prune
             docker volume rm khalid-mysql-data || echo "no volume"
-            docker run --name khalid-mysql --rm --network dev -v khalid-mysql-data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_LOGIN_PSW} -e MYSQL_DATABASE=db_example -d mysql:8.0
+            docker run --name khalid-mysql --rm --network dev -v khalid-mysql-data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_LOGIN -e MYSQL_DATABASE=db_example -d mysql:8.0
             sleep 20
-            docker exec -i khalid-mysql mysql --user=root --password=${MYSQL_ROOT_LOGIN_PSW} < script
+            docker exec -i khalid-mysql mysql --user=root --password=$MYSQL_ROOT_LOGIN < script
 
   deploy-springboot-dev:
     executor: maven-executor
@@ -90,4 +91,3 @@ workflows:
       - deploy-springboot-dev:
           requires:
             - deploy-mysql-dev
-
