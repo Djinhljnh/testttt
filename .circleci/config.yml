@@ -1,111 +1,93 @@
 version: 2.1
 
+executors:
+  maven-executor:
+    docker:
+      - image: circleci/openjdk:11-jdk
+    working_directory: ~/repo
+
 jobs:
   build:
-    docker:
-      - image: circleci/openjdk:11-jdk  # Java + Maven environment
-      - image: circleci/mysql:8.0        # MySQL service
+    executor: maven-executor
     environment:
-      MYSQL_ROOT_PASSWORD: <<parameters.mysql_password>>
-    steps:
+      MYSQL_ROOT_LOGIN = credentials('mysql-root-login')
       - checkout
-      - setup_remote_docker  # For Docker commands inside CircleCI
 
       - run:
-          name: Install Maven & Java Versions
+          name: Set up Maven and Java
           command: |
             mvn --version
             java -version
 
       - run:
           name: Build with Maven
-          command: mvn clean package -Dmaven.test.failure.ignore=true
+          command: |
+            mvn clean package -Dmaven.test.failure.ignore=true
 
-  push_image:
-    docker:
-      - image: circleci/openjdk:11-jdk
+  package-and-push-image:
+    executor: maven-executor
     steps:
       - checkout
-      - setup_remote_docker
+
+      - setup_remote_docker:
+          version: 20.10.7
 
       - run:
-          name: Docker Login and Build
+          name: Build and Push Docker Image
           command: |
-            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
             docker build -t khaliddinh/springboot .
+            docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
             docker push khaliddinh/springboot
 
-  deploy_mysql:
-    docker:
-      - image: circleci/mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: <<parameters.mysql_password>>
+  deploy-mysql-dev:
+    executor: maven-executor
     steps:
-      - setup_remote_docker
+      - checkout
+
+      - setup_remote_docker:
+          version: 20.10.7
 
       - run:
           name: Deploy MySQL to DEV
           command: |
-            docker network create dev || echo "Network exists"
-            docker container stop khalid-mysql || echo "Container does not exist"
+            docker pull mysql:8.0
+            docker network create dev || echo "this network exists"
+            docker container stop khalid-mysql || echo "this container does not exist"
             echo y | docker container prune
-            docker volume rm khalid-mysql-data || echo "No volume"
-
-            docker run --name khalid-mysql --rm --network dev \
-              -v khalid-mysql-data:/var/lib/mysql \
-              -e MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD \
-              -e MYSQL_DATABASE=db_example \
-              -d mysql:8.0
+            docker volume rm khalid-mysql-data || echo "no volume"
+            docker run --name khalid-mysql --rm --network dev -v khalid-mysql-data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_LOGIN_PSW} -e MYSQL_DATABASE=db_example -d mysql:8.0
             sleep 20
-            docker exec -i khalid-mysql mysql --user=root --password=$MYSQL_ROOT_PASSWORD < script
+            docker exec -i khalid-mysql mysql --user=root --password=${MYSQL_ROOT_LOGIN_PSW} < script
 
-  deploy_springboot:
-    docker:
-      - image: circleci/openjdk:11-jdk
+  deploy-springboot-dev:
+    executor: maven-executor
     steps:
-      - setup_remote_docker
+      - checkout
+
+      - setup_remote_docker:
+          version: 20.10.7
 
       - run:
           name: Deploy Spring Boot to DEV
           command: |
-            docker container stop khalid-springboot || echo "Container does not exist"
-            docker network create dev || echo "Network exists"
+            docker pull khaliddinh/springboot
+            docker container stop khalid-springboot || echo "this container does not exist"
+            docker network create dev || echo "this network exists"
             echo y | docker container prune
-
-            docker container run -d --rm --name khalid-springboot \
-              -p 8081:8080 --network dev khaliddinh/springboot
-
-  cleanup:
-    docker:
-      - image: circleci/openjdk:11-jdk
-    steps:
-      - run:
-          name: Cleanup Workspace
-          command: |
-            echo y | docker container prune
-            docker network rm dev || echo "Network not found"
-      - clean:  # Clean workspace
-          path: .
+            docker container run -d --rm --name khalid-springboot -p 8081:8080 --network dev khaliddinh/springboot
 
 workflows:
   version: 2
-  pipeline-workflow:
-    parameters:
-      mysql_password:
-        type: string
-        default: "your_mysql_root_password"
-
+  build-and-deploy:
     jobs:
       - build
-      - push_image:
+      - package-and-push-image:
           requires:
             - build
-      - deploy_mysql:
+      - deploy-mysql-dev:
           requires:
-            - push_image
-      - deploy_springboot:
+            - package-and-push-image
+      - deploy-springboot-dev:
           requires:
-            - deploy_mysql
-      - cleanup:
-          requires:
-            - deploy_springboot
+            - deploy-mysql-dev
+
