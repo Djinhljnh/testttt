@@ -1,9 +1,18 @@
 version: 2.1
 
 jobs:
+  checkout-scm:
+    docker:
+      - image: cimg/python:3.8
+    steps:
+      - checkout
+      - run:
+          name: Checkout SCM
+          command: echo "Checked out source code from SCM."
+
   clone-repo:
     docker:
-      - image: cimg/python:3.8  # Sử dụng Docker image Python 3.8, có thể thay đổi theo nhu cầu
+      - image: cimg/python:3.8
     steps:
       - checkout
       - run:
@@ -12,16 +21,16 @@ jobs:
 
   build:
     docker:
-      - image: cimg/python:3.8  # Sử dụng Python image
+      - image: cimg/python:3.8
     steps:
       - checkout
       - run:
           name: Build
-          command: python3 hello.py  # Chạy script hello.py
+          command: python3 hello.py  # Replace with your build steps
 
   test:
     docker:
-      - image: cimg/python:3.8  # Sử dụng Docker image Python 3.8
+      - image: cimg/python:3.8
     steps:
       - checkout
       - run:
@@ -39,18 +48,30 @@ jobs:
 
   deploy:
     docker:
-      - image: cimg/python:3.8  # Có thể sử dụng image khác tuỳ thuộc vào yêu cầu của deploy
+      - image: cimg/python:3.8
     steps:
       - checkout
       - run:
           name: Deploy
-          command: echo "Deploying..."  # Thêm các lệnh deploy thực tế tại đây
+          command: echo "Deploying... (replace with actual deploy logic)"
+
+  post-actions:
+    docker:
+      - image: cimg/python:3.8
+    steps:
+      - checkout
+      - run:
+          name: Post Actions
+          command: echo "Executing post-deployment actions."
 
 workflows:
   version: 2
   pipeline-workflow:
     jobs:
-      - clone-repo
+      - checkout-scm
+      - clone-repo:
+          requires:
+            - checkout-scm
       - build:
           requires:
             - clone-repo
@@ -60,3 +81,6 @@ workflows:
       - deploy:
           requires:
             - test
+      - post-actions:
+          requires:
+            - deploy
